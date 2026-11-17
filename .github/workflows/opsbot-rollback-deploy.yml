@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       revision:
-        description: The revision to deploy. Unused: this workflow never deploys anything real.
+        description: "The revision to deploy. Unused: this workflow never deploys anything real."
         required: false
         type: string
         default: ""
