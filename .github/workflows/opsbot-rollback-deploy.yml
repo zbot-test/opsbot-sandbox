@@ -1,0 +1,24 @@
+name: opsbot rollback deploy (no-op; design-aws.md §4, plan.md WP-61 sandbox fixture)
+run-name: "${{ inputs.mode }} ${{ inputs.action_id }}"
+on:
+  workflow_dispatch:
+    inputs:
+      action_id:
+        description: The opsbot Action id this dispatch is for.
+        required: true
+        type: string
+      revision:
+        description: The revision to deploy. Unused: this workflow never deploys anything real.
+        required: false
+        type: string
+        default: ""
+      mode:
+        description: "rollback or revert, echoed into run-name so a repeat dispatch is recognisable."
+        required: false
+        type: string
+        default: rollback
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "opsbot ${{ inputs.mode }} action ${{ inputs.action_id }} revision ${{ inputs.revision }}"
