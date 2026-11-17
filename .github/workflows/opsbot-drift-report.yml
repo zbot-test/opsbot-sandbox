@@ -1,0 +1,16 @@
+name: opsbot drift report (design-aws.md §5.5, plan.md WP-70 sandbox fixture)
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+permissions:
+  checks: write
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: cfcfs/opsbot/actions/drift-report@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
