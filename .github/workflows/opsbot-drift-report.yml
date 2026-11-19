@@ -5,12 +5,21 @@ on:
   workflow_dispatch: {}
 permissions:
   checks: write
+  contents: read
+  id-token: write
 jobs:
   drift:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - uses: cfcfs/opsbot/actions/drift-report@master
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
+          role-to-assume: arn:aws:iam::199618931467:role/opsbot-test-sandbox-github-actions
+          aws-region: eu-central-1
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - uses: ./.github/actions/drift-report
+        with:
+          working-directory: terraform
           github-token: ${{ secrets.GITHUB_TOKEN }}
