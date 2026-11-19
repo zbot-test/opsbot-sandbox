@@ -1,0 +1,58 @@
+name: opsbot drift report
+description: >-
+  design-aws.md §5.5: runs terraform plan, keeps only resource addresses and change actions
+  (never values, since plan output can carry secrets), and posts the result as the
+  opsbot/drift check run on the default branch head.
+inputs:
+  working-directory:
+    description: Directory holding the Terraform root module.
+    required: false
+    default: "."
+  workspace:
+    description: The Terraform workspace to report drift for.
+    required: false
+    default: default
+  github-token:
+    description: Token with checks:write on this repo. The job's own GITHUB_TOKEN has it.
+    required: true
+outputs:
+  conclusion:
+    description: success (no drift), neutral (drift) or failure (the plan itself errored).
+    value: ${{ steps.report.outputs.conclusion }}
+runs:
+  using: composite
+  steps:
+    - id: plan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set +e
+        terraform init -input=false && terraform plan -input=false -detailed-exitcode -out=opsbot-drift.tfplan
+        echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+    - id: show
+      if: steps.plan.outputs.exit_code == '0' || steps.plan.outputs.exit_code == '2'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform show -json opsbot-drift.tfplan > opsbot-drift-plan.json
+
+    - id: report
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/drift_report.py" \
+          --plan-json "${{ inputs.working-directory }}/opsbot-drift-plan.json" \
+          --workspace "${{ inputs.workspace }}" \
+          "${{ steps.plan.outputs.exit_code }}"
+
+    - id: post-check
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        gh api "repos/${{ github.repository }}/check-runs" --method POST \
+          -f "name=opsbot/drift" \
+          -f "head_sha=${{ github.sha }}" \
+          -f "status=completed" \
+          -f "conclusion=${{ steps.report.outputs.conclusion }}" \
+          -f "output[title]=${{ steps.report.outputs.title }}" \
+          -f "output[summary]=${{ steps.report.outputs.summary }}"
