@@ -38,21 +38,26 @@ runs:
 
     - id: report
       shell: bash
+      env:
+        EXIT_CODE: ${{ steps.plan.outputs.exit_code }}
       run: |
         python3 "${{ github.action_path }}/drift_report.py" \
           --plan-json "${{ inputs.working-directory }}/opsbot-drift-plan.json" \
           --workspace "${{ inputs.workspace }}" \
-          "${{ steps.plan.outputs.exit_code }}"
+          "$EXIT_CODE"
 
     - id: post-check
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        CONCLUSION: ${{ steps.report.outputs.conclusion }}
+        TITLE: ${{ steps.report.outputs.title }}
+        SUMMARY: ${{ steps.report.outputs.summary }}
       run: |
         gh api "repos/${{ github.repository }}/check-runs" --method POST \
           -f "name=opsbot/drift" \
           -f "head_sha=${{ github.sha }}" \
           -f "status=completed" \
-          -f "conclusion=${{ steps.report.outputs.conclusion }}" \
-          -f "output[title]=${{ steps.report.outputs.title }}" \
-          -f "output[summary]=${{ steps.report.outputs.summary }}"
+          -f "conclusion=$CONCLUSION" \
+          -f "output[title]=$TITLE" \
+          -f "output[summary]=$SUMMARY"
