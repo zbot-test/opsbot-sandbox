@@ -2,13 +2,13 @@
 plan plus the exit code `terraform plan -detailed-exitcode` returned into the `opsbot/drift`
 check run's output.
 
-Stdlib only, no `opsbot_github` import. This script runs in whichever repo installs the
+Stdlib only, no `opsbot_integration_github` import. This script runs in whichever repo installs the
 action, not this one, so it can't depend on this workspace's packages; `action.yml` next to
 it is a composite action so it carries no build step either. Candidate for a split into its
 own `opsbot/drift-report` repo later (plan.md WP-70 ticket notes); nothing here reaches back
 into this workspace, so the split is a copy, not a rewrite.
 
-`opsbot_github.pure.signals.DriftReport` is the contract this builds against
+`opsbot_integration_github.pure.signals.DriftReport` is the contract this builds against
 (`tests/drift_report/test_drift_report.py` feeds this script's own output through that
 parser). The summary JSON must carry only `schema_version`, `workspace`, `ran_at`,
 `exit_code` and `changes` (each an address and one of create/update/delete/replace), and
@@ -82,7 +82,7 @@ def conclusion_for(exit_code: int) -> Conclusion:
 
 
 def build_report(plan: Mapping[str, Any], workspace: str, exit_code: int, ran_at: datetime) -> dict[str, Any]:
-    """The verbatim `DriftReport` JSON (plan.md WP-70, `opsbot_github.pure.signals`).
+    """The verbatim `DriftReport` JSON (plan.md WP-70, `opsbot_integration_github.pure.signals`).
     Only a `drift` outcome reads `plan` for changes: `no_drift` is terraform's own signal,
     trusted over re-deriving it, and `failed` means the plan errored, so `changes` is `[]`
     there too rather than whatever happens to be in `plan`."""
