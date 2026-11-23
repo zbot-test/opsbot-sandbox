@@ -1,20 +1,10 @@
-"""`opsbot/drift-report` (design-aws.md §5.5, plan.md WP-70): turns a `terraform show -json`
-plan plus the exit code `terraform plan -detailed-exitcode` returned into the `opsbot/drift`
-check run's output.
+"""`opsbot/drift-report`: turns a `terraform show -json` plan and the `-detailed-exitcode` exit code
+into the `opsbot/drift` check run output.
 
-Stdlib only, no `opsbot_integration_github` import. This script runs in whichever repo installs the
-action, not this one, so it can't depend on this workspace's packages; `action.yml` next to
-it is a composite action so it carries no build step either. Candidate for a split into its
-own `opsbot/drift-report` repo later (plan.md WP-70 ticket notes); nothing here reaches back
-into this workspace, so the split is a copy, not a rewrite.
+Stdlib only: this runs in whichever repo installs the action, so it can't import this workspace's packages.
 
-`opsbot_integration_github.pure.signals.DriftReport` is the contract this builds against
-(`tests/drift_report/test_drift_report.py` feeds this script's own output through that
-parser). The summary JSON must carry only `schema_version`, `workspace`, `ran_at`,
-`exit_code` and `changes` (each an address and one of create/update/delete/replace), and
-never a resource value: plan output can carry secrets in `before`/`after`, which is exactly
-why `before_sensitive`/`after_sensitive` and the `before`/`after` payloads themselves are
-never read below.
+The summary JSON carries only `schema_version`, `workspace`, `ran_at`, `exit_code` and `changes`
+(address and action), never a resource value: plan `before`/`after` can hold secrets, so they are never read.
 """
 
 from __future__ import annotations
@@ -44,15 +34,12 @@ _ACTION_MAP: dict[tuple[str, ...], DriftAction] = {
 
 
 def drift_action(actions: list[str]) -> DriftAction | None:
-    """One Terraform resource change's `change.actions`; `None` for `no-op` or `read`, which
-    aren't drift."""
+    """`None` for `no-op` or `read`, which aren't drift."""
     return _ACTION_MAP.get(tuple(actions))
 
 
 def changes_from_plan(plan: Mapping[str, Any]) -> list[dict[str, str]]:
-    """Only the address and action survive (design-aws.md §5.5): `change.before`, `after`
-    and the `*_sensitive` maps are never read, so a secret resource value can't reach the
-    result regardless of whether Terraform flagged it sensitive."""
+    """Only address and action survive; `before`/`after` are never read, sensitive or not."""
     changes: list[dict[str, str]] = []
     for resource_change in plan.get("resource_changes", []):
         action = drift_action(resource_change["change"]["actions"])
@@ -62,11 +49,7 @@ def changes_from_plan(plan: Mapping[str, Any]) -> list[dict[str, str]]:
 
 
 def plan_outcome(exit_code: int) -> PlanOutcome:
-    """design-aws.md §5.5 and `terraform plan -detailed-exitcode`'s own contract: 0 is no
-    drift, 2 is drift. Any other code means the plan itself failed (plan.md WP-70: "treat
-    any other code as a failed run"). The one place that decides what an exit code means;
-    `build_report`, `title_for` and `conclusion_for` all read this instead of each
-    re-deriving it from `exit_code`."""
+    """`-detailed-exitcode`: 0 is no drift, 2 is drift, anything else is a failed plan."""
     if exit_code == 0:
         return "no_drift"
     if exit_code == 2:
@@ -82,10 +65,7 @@ def conclusion_for(exit_code: int) -> Conclusion:
 
 
 def build_report(plan: Mapping[str, Any], workspace: str, exit_code: int, ran_at: datetime) -> dict[str, Any]:
-    """The verbatim `DriftReport` JSON (plan.md WP-70, `opsbot_integration_github.pure.signals`).
-    Only a `drift` outcome reads `plan` for changes: `no_drift` is terraform's own signal,
-    trusted over re-deriving it, and `failed` means the plan errored, so `changes` is `[]`
-    there too rather than whatever happens to be in `plan`."""
+    """The `DriftReport` JSON; only a `drift` outcome reads `plan` for changes."""
     changes = changes_from_plan(plan) if plan_outcome(exit_code) == "drift" else []
     return {
         "schema_version": SCHEMA_VERSION,
@@ -105,8 +85,7 @@ def title_for(exit_code: int, changes: list[dict[str, str]]) -> str:
 
 
 def check_run_output(report: dict[str, Any]) -> dict[str, str]:
-    """The GitHub check run `output` object: free-text `title`, and `summary` as the
-    `DriftReport` JSON verbatim, the shape `GitHubSignals.drift_signals` parses."""
+    """The check run `output`; `summary` is the report JSON that `GitHubSignals.drift_signals` parses."""
     return {
         "title": title_for(report["exit_code"], report["changes"]),
         "summary": json.dumps(report, separators=(",", ":")),
@@ -114,8 +93,7 @@ def check_run_output(report: dict[str, Any]) -> dict[str, str]:
 
 
 def load_plan(path: str | None) -> Mapping[str, Any]:
-    """`None`, or a path `terraform show -json` never wrote because the plan itself failed,
-    both mean "nothing to read"."""
+    """A missing file means the plan failed before `terraform show -json` wrote it."""
     if path is None or not os.path.exists(path):
         return {}
     with open(path, encoding="utf-8") as plan_file:
