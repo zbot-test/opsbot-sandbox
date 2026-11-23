@@ -37,6 +37,6 @@ resource "aws_security_group" "drift_target" {
   description = "e2e drift scenario target; any ingress rule on it is drift"
   vpc_id      = data.aws_vpc.default.id
 
-  # Omitted, `ingress` is computed and Terraform ignores rules added outside it.
+  # omitted, `ingress` is computed and out-of-band rules are ignored
   ingress = []
 }
