@@ -1,6 +1,6 @@
 name: opsbot drift report
 description: >-
-  design-aws.md §5.5: runs terraform plan, keeps only resource addresses and change actions
+  Runs terraform plan, keeps only resource addresses and change actions
   (never values, since plan output can carry secrets), and posts the result as the
   opsbot/drift check run on the default branch head.
 inputs:
